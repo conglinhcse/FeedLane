@@ -24,24 +24,25 @@ class CNNModel:
     def __init__(self, config):
         self.config = parse_configs(config)
         self.IMG_SIZE = self.config['img_size']
+        self.IMG_SHAPE = (self.IMG_SIZE, self.IMG_SIZE, 3)
         self.MODEL_NAME = self.config['model_name']
         self.CLASS_NAMES = self.config["class_names"]
         self.NUM_CLASSES = self.config["num_classes"]
         self.DATA_TYPE = self.config["data_type"]
         self.WEIGHT = self.config["weight"]
         self.DATA_PATH = self.config["data_path"]
-        self.dataset = Dataset()
+        self.dataset = Dataset(self.IMG_SHAPE)
 
     def cnnmodel(self):
         inpt = Input(
-            shape=(self.IMG_SIZE, self.IMG_SIZE, 3),
+            shape=self.IMG_SHAPE,
             name="inpt",
         )
 
         vgg16 = VGG16(
             include_top=False,
             weights="imagenet",
-            input_tensor=outpt,
+            input_tensor=inpt,
             pooling=None,
             classes=self.NUM_CLASSES,
             classifier_activation="softmax",)
@@ -121,7 +122,7 @@ if __name__ == "__main__":
     parse.add_argument('--ngpus', type=int, default=0)
     opt = parse.parse_args()
 
-    CONFIG = "config/cnn_2.json"
+    CONFIG = "/content/FeedLane/config/config.json"
 
     cnnmodel = CNNModel(CONFIG)
     model, history = cnnmodel.run(opt.mode, opt.ngpus)

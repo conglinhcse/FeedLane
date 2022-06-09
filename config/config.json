@@ -1,9 +1,9 @@
 {
     "model_name": "FeedLaneClassificationModel",
     "pretrained_model": "",
-    "data_path": "data",
-    "training_set": "data/train",
-    "testing_set": "data/test",
+    "data_path": "/content/FeedLane/data/subdata",
+    "training_set": "/content/FeedLane/data/subdata",
+    "testing_set": "/content/FeedLane/data/subdata",
     "weight": "./weight/FeedLaneClassificationModel-vgg16-finetune.h5",
     "log": "./log/FeedLaneClassificationModel-vgg16-finetune",
     "img_size": 224,

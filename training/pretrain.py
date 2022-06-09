@@ -58,7 +58,7 @@ def pretrain(cnnmodel, config, X_train, X_val, y_train, y_val, ngpus=0):
             model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
 
         model.summary()
-        history = model.fit(X_train, y_train, batch_size = batch_size, epochs=epoch, validation_data=(X_val, y_val), callbacks=[lr_reduce,checkpoint,es,fzcb,tbcb])
+        history = model.fit(X_train, y_train, batch_size = batch_size, epochs=epoch, validation_data=(X_val, y_val), callbacks=[])
 
         model.save(WEIGHT)
 
