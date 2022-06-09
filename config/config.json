@@ -1,0 +1,38 @@
+{
+    "model_name": "FeedLaneClassificationModel",
+    "pretrained_model": "",
+    "data_path": "data",
+    "training_set": "data/train",
+    "testing_set": "data/test",
+    "weight": "./weight/FeedLaneClassificationModel-vgg16-finetune.h5",
+    "log": "./log/FeedLaneClassificationModel-vgg16-finetune",
+    "img_size": 224,
+    "class_names": [
+        "empty",
+        "full",
+        "minimal",
+        "normal"
+    ],
+    "num_classes": 4,
+    "resume": false,
+    "save_checkpoint_mode": [
+        "best",
+        "last"
+    ],
+    "batch_size": 8,
+    "epoch": 100,
+    "lr": 1e-5,
+    "weight_decay": 1e-4,
+    "momentum": 0.927,
+    "device": "cpu",
+    "loss": "categorical_crossentropy",
+    "metrics": [
+        "AUC",
+        "categorical_accuracy"
+    ],
+    "optimizer": "adam",
+    "data_type": [
+        "train",
+        "test"
+    ]
+}
