@@ -34,6 +34,7 @@ class Dataset():
           for ele in ls_img_path:
             img = cv2.imread(f"{path}/{ele}")
             img = cv2.resize(img, self.IMG_SHAPE[:2])
+            img = img / 255.0
             X.append(img)
             Y.append(label)
         
