@@ -31,7 +31,7 @@ class CNNModel:
         self.DATA_TYPE = self.config["data_type"]
         self.WEIGHT = self.config["weight"]
         self.DATA_PATH = self.config["data_path"]
-        self.dataset = Dataset(self.IMG_SHAPE)
+        self.dataset = Dataset(self.config)
 
     def cnnmodel(self):
         inpt = Input(

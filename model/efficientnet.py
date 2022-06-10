@@ -9,6 +9,7 @@ from dataset.dataset import Dataset
 from training.evaluate import evaluate
 from training.predict import predict
 from training.visualize import visualize
+from training.visualize import plot_hist
 from training.pretrain import pretrain
 
 # Math
@@ -17,8 +18,11 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.applications.vgg16 import preprocess_input
-from tensorflow.keras.layers import Reshape, RepeatVector, Conv1D, Input, BatchNormalization, AveragePooling2D, Dense, Dropout, Conv2D
+from tensorflow.keras.layers import Reshape, RepeatVector, Conv1D, Input, BatchNormalization, GlobalAveragePooling2D, AveragePooling2D, Dense, Dropout, Conv2D
 from tensorflow.python.keras.layers.core import Flatten
+# from cloud_tpu_client import Client
+from tensorflow.keras.models import Sequential
+from tensorflow.keras import layers
 
 from tensorflow.keras.applications import EfficientNetB0
 
@@ -33,26 +37,40 @@ class EfficientNetModel:
         self.DATA_TYPE = self.config["data_type"]
         self.WEIGHT = self.config["weight"]
         self.DATA_PATH = self.config["data_path"]
-        self.dataset = Dataset(self.IMG_SHAPE)
+        self.dataset = Dataset(self.config)
+        self.strategy = None
+
+    def augment(self):
+        img_augmentation = Sequential(
+            [
+                layers.RandomRotation(factor=0.15),
+                layers.RandomTranslation(height_factor=0.1, width_factor=0.1),
+                layers.RandomFlip(),
+                layers.RandomContrast(factor=0.1),
+            ],
+            name="img_augmentation",
+        )
+
+        return img_augmentation
 
     def build_model(self):
         inpt = Input(
                 shape=self.IMG_SHAPE,
                 name="inpt",
             )
-        # outpt = img_augmentation(inpt)
-        model = EfficientNetB0(include_top=False, input_tensor=outpt, weights="imagenet")
+        # outpt = self.augment(inpt)
+        model = EfficientNetB0(include_top=False, input_tensor=inpt, weights="imagenet")
 
         # Freeze the pretrained weights
         model.trainable = False
 
         # Rebuild top
-        outpt = layers.GlobalAveragePooling2D(name="avg_pool")(model.output)
-        outpt = layers.BatchNormalization()(outpt)
+        outpt = GlobalAveragePooling2D(name="avg_pool")(model.output)
+        outpt = BatchNormalization()(outpt)
 
         top_dropout_rate = 0.2
-        outpt = layers.Dropout(top_dropout_rate, name="top_dropout")(outpt)
-        outpt = layers.Dense(self.NUM_CLASSES, activation="softmax", name="pred")(outpt)
+        outpt = Dropout(top_dropout_rate, name="top_dropout")(outpt)
+        outpt = Dense(self.NUM_CLASSES, activation="softmax", name="pred")(outpt)
 
         # Compile
         model = tf.keras.Model(inpt, outpt, name="EfficientNet")
@@ -63,7 +81,7 @@ class EfficientNetModel:
         return model
 
     def cnnmodel(self):
-        with strategy.scope():
+        with self.strategy.scope():
             inpt = Input(
                 shape=self.IMG_SHAPE,
                 name="inpt",
@@ -120,14 +138,22 @@ class EfficientNetModel:
         return inpt, outpt
 
     def train(self, X_train, X_val, y_train, y_val, ngpus=0):
-        with strategy.scope():
+        try:
+            tpu = tf.distribute.cluster_resolver.TPUClusterResolver.connect()
+            print("Device:", tpu.master())
+            self.strategy = tf.distribute.TPUStrategy(tpu)
+        except:
+            print("Not connected to a TPU runtime. Using CPU/GPU strategy")
+            self.strategy = tf.distribute.MirroredStrategy()
+
+        with self.strategy.scope():
             model = self.build_model()
 
-        epochs = 25  # @param {type: "slider", min:8, max:80}
+        epochs = 2  # @param {type: "slider", min:8, max:80}
         hist = model.fit(X_train, y_train, epochs=epochs, validation_data=(X_val, y_val), verbose=2)
         plot_hist(hist)
         # train_log = pretrain(self.cnnmodel, self.config, X_train, X_val, y_train, y_val, ngpus=0)
-        # return train_log
+        return hist
 
     def evaluate(self, X_test, y_test, weight=None):
         model = self.cnnmodel()
@@ -149,10 +175,10 @@ class EfficientNetModel:
         assert mode in ["train", "test"], "mode must be in ['train', 'test']"
 
         if mode == 'train':
-            X_train, X_val, y_train, y_val = self.dataset.data_generator(data_path=self.DATA_PATH, data_type='train')
+            X_train, X_val, y_train, y_val = self.dataset.data_generator(data_type='train')
             train_log = self.train(X_train, X_val, y_train, y_val,ngpus)
             # visualize(train_log)
-            return train_log['model'], train_log['history']
+            return train_log
         else: 
             X, Y = self.dataset.data_generator(data_path=self.DATA_PATH, data_type='test')
             # evaluate(X,Y)
@@ -167,4 +193,4 @@ if __name__ == "__main__":
     CONFIG = "/content/FeedLane/config/config.json"
 
     eModel = EfficientNetModel(CONFIG)
-    model, history = eModel.run(opt.mode, opt.ngpus)
+    history = eModel.run(opt.mode, opt.ngpus)
