@@ -15,21 +15,26 @@ class DataAugment():
         pass
 
 class Dataset():
-    def __init__(self, img_shape, data_path="/content/FeedLane/data/subdata"):
-        self.IMG_SHAPE = img_shape
-        self.DATA_PATH = data_path
-        self.LABEL = ["empty","full","minimal","normal"]
-        self.DATA_TYPE = ['train', 'test']
+    def __init__(self, config):
+        self.IMG_SIZE = config['img_size']
+        self.IMG_SHAPE = (self.IMG_SIZE, self.IMG_SIZE, 3)
+        self.TRAINING_SET = config['training_set']
+        self.TESTING_SET = config['testing_set']
+        self.CLASS_NAMES = config["class_names"]
+        self.DATA_TYPE = config["data_type"]
 
-    def data_generator(self, data_path=None, data_type=None):
+    def data_generator(self, data_type=None):
         assert data_type in ["train", "test"], "data_type must be in ['train', 'test']"
-        if data_path != None:
-          self.DATA_PATH = data_path
 
         X, Y = [], []
 
-        for label in self.LABEL:
-          path = f"{self.DATA_PATH}/{label}"
+        if data_type == 'train':
+            DATA_PATH = self.TRAINING_SET
+        else:
+            DATA_PATH = self.TESTING_SET
+
+        for label in self.CLASS_NAMES:
+          path = f"{DATA_PATH}/{label}"
           ls_img_path = os.listdir(path)
           for ele in ls_img_path:
             img = cv2.imread(f"{path}/{ele}")

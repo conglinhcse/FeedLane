@@ -20,7 +20,9 @@ from tensorflow.keras.applications.vgg16 import preprocess_input
 from tensorflow.keras.layers import Reshape, RepeatVector, Conv1D, Input, BatchNormalization, AveragePooling2D, Dense, Dropout, Conv2D
 from tensorflow.python.keras.layers.core import Flatten
 
-class CNNModel:
+from tensorflow.keras.applications import EfficientNetB0
+
+class EfficientNetModel:
     def __init__(self, config):
         self.config = parse_configs(config)
         self.IMG_SIZE = self.config['img_size']
@@ -33,19 +35,53 @@ class CNNModel:
         self.DATA_PATH = self.config["data_path"]
         self.dataset = Dataset(self.IMG_SHAPE)
 
-    def cnnmodel(self):
+    def build_model(self):
         inpt = Input(
-            shape=self.IMG_SHAPE,
-            name="inpt",
-        )
+                shape=self.IMG_SHAPE,
+                name="inpt",
+            )
+        # outpt = img_augmentation(inpt)
+        model = EfficientNetB0(include_top=False, input_tensor=outpt, weights="imagenet")
 
-        vgg16 = VGG16(
-            include_top=False,
-            weights="imagenet",
-            input_tensor=inpt,
-            pooling=None,
-            classes=self.NUM_CLASSES,
-            classifier_activation="softmax",)
+        # Freeze the pretrained weights
+        model.trainable = False
+
+        # Rebuild top
+        outpt = layers.GlobalAveragePooling2D(name="avg_pool")(model.output)
+        outpt = layers.BatchNormalization()(outpt)
+
+        top_dropout_rate = 0.2
+        outpt = layers.Dropout(top_dropout_rate, name="top_dropout")(outpt)
+        outpt = layers.Dense(self.NUM_CLASSES, activation="softmax", name="pred")(outpt)
+
+        # Compile
+        model = tf.keras.Model(inpt, outpt, name="EfficientNet")
+        optimizer = tf.keras.optimizers.Adam(learning_rate=1e-2)
+        model.compile(
+            optimizer=optimizer, loss="categorical_crossentropy", metrics=["accuracy"]
+        )
+        return model
+
+    def cnnmodel(self):
+        with strategy.scope():
+            inpt = Input(
+                shape=self.IMG_SHAPE,
+                name="inpt",
+            )
+
+            outpt = img_augmentation(inpt)
+
+            outpt = EfficientNetB0(include_top=False, weights='imagenet', classes=self.NUM_CLASSES)(outpt)
+
+            model = tf.keras.Model(inpt, outpt)
+            model.compile(
+                optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"]
+            )
+
+        model.summary()
+
+        epochs = 40  # @param {type: "slider", min:10, max:100}
+        hist = model.fit(ds_train, epochs=epochs, validation_data=ds_test, verbose=2)
 
         vgg16.trainable = False
 
@@ -84,8 +120,14 @@ class CNNModel:
         return inpt, outpt
 
     def train(self, X_train, X_val, y_train, y_val, ngpus=0):
-        train_log = pretrain(self.cnnmodel, self.config, X_train, X_val, y_train, y_val, ngpus=0)
-        return train_log
+        with strategy.scope():
+            model = self.build_model()
+
+        epochs = 25  # @param {type: "slider", min:8, max:80}
+        hist = model.fit(X_train, y_train, epochs=epochs, validation_data=(X_val, y_val), verbose=2)
+        plot_hist(hist)
+        # train_log = pretrain(self.cnnmodel, self.config, X_train, X_val, y_train, y_val, ngpus=0)
+        # return train_log
 
     def evaluate(self, X_test, y_test, weight=None):
         model = self.cnnmodel()
@@ -107,7 +149,7 @@ class CNNModel:
         assert mode in ["train", "test"], "mode must be in ['train', 'test']"
 
         if mode == 'train':
-            X_train, X_val, y_train, y_val = self.dataset.data_generator(data_type='train')
+            X_train, X_val, y_train, y_val = self.dataset.data_generator(data_path=self.DATA_PATH, data_type='train')
             train_log = self.train(X_train, X_val, y_train, y_val,ngpus)
             # visualize(train_log)
             return train_log['model'], train_log['history']
@@ -124,5 +166,5 @@ if __name__ == "__main__":
 
     CONFIG = "/content/FeedLane/config/config.json"
 
-    cnnmodel = CNNModel(CONFIG)
-    model, history = cnnmodel.run(opt.mode, opt.ngpus)
+    eModel = EfficientNetModel(CONFIG)
+    model, history = eModel.run(opt.mode, opt.ngpus)
